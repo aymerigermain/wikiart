@@ -24,6 +24,7 @@ from torch.amp import GradScaler
 from torch.amp import autocast
 from tqdm import tqdm
 import numpy as np
+from torch.utils.tensorboard import SummaryWriter
 
 from data import download_or_use_cached, discover_structure, build_label_mappings
 from dataset import create_splits, create_dataloaders, get_class_weights
@@ -420,6 +421,10 @@ def train(config: dict) -> None:
     with open(save_dir / "config.json", "w") as f:
         json.dump(config, f, indent=2)
 
+    # ===== TENSORBOARD =====
+    writer = SummaryWriter(log_dir=save_dir / "tensorboard")
+    print(f"TensorBoard: tensorboard --logdir {save_dir / 'tensorboard'}")
+
     # ===== DONNÉES =====
     print("\n" + "-" * 40)
     print("Chargement des données...")
@@ -563,6 +568,39 @@ def train(config: dict) -> None:
               f"Artist Acc: {val_metrics['artist_top1']:.2%}")
         print(f"Temps - Epoch: {format_time(epoch_time)}, Total: {format_time(total_elapsed)}")
 
+        # TensorBoard logging
+        global_epoch = epoch
+        writer.add_scalars("Loss", {
+            "train": train_metrics["loss_total"],
+            "val": val_metrics["loss_total"],
+        }, global_epoch)
+        writer.add_scalars("Loss/Style", {
+            "train": train_metrics["loss_style"],
+            "val": val_metrics["loss_style"],
+        }, global_epoch)
+        writer.add_scalars("Loss/Artist", {
+            "train": train_metrics["loss_artist"],
+            "val": val_metrics["loss_artist"],
+        }, global_epoch)
+        writer.add_scalars("Accuracy/Style_Top1", {
+            "train": train_metrics["style_top1"],
+            "val": val_metrics["style_top1"],
+        }, global_epoch)
+        writer.add_scalars("Accuracy/Style_Top5", {
+            "train": train_metrics["style_top5"],
+            "val": val_metrics["style_top5"],
+        }, global_epoch)
+        writer.add_scalars("Accuracy/Artist_Top1", {
+            "train": train_metrics["artist_top1"],
+            "val": val_metrics["artist_top1"],
+        }, global_epoch)
+        writer.add_scalars("Accuracy/Artist_Top5", {
+            "train": train_metrics["artist_top5"],
+            "val": val_metrics["artist_top5"],
+        }, global_epoch)
+        writer.add_scalar("Time/Epoch_seconds", epoch_time, global_epoch)
+        writer.add_scalar("LearningRate", optimizer.param_groups[0]["lr"], global_epoch)
+
         # Sauvegarde de l'historique
         history["train"].append(train_metrics)
         history["val"].append(val_metrics)
@@ -638,6 +676,40 @@ def train(config: dict) -> None:
               f"Artist Acc: {val_metrics['artist_top1']:.2%}")
         print(f"Temps - Epoch: {format_time(epoch_time)}, Total: {format_time(total_elapsed)}")
 
+        # TensorBoard logging
+        global_epoch = config["phase1_epochs"] + epoch
+        writer.add_scalars("Loss", {
+            "train": train_metrics["loss_total"],
+            "val": val_metrics["loss_total"],
+        }, global_epoch)
+        writer.add_scalars("Loss/Style", {
+            "train": train_metrics["loss_style"],
+            "val": val_metrics["loss_style"],
+        }, global_epoch)
+        writer.add_scalars("Loss/Artist", {
+            "train": train_metrics["loss_artist"],
+            "val": val_metrics["loss_artist"],
+        }, global_epoch)
+        writer.add_scalars("Accuracy/Style_Top1", {
+            "train": train_metrics["style_top1"],
+            "val": val_metrics["style_top1"],
+        }, global_epoch)
+        writer.add_scalars("Accuracy/Style_Top5", {
+            "train": train_metrics["style_top5"],
+            "val": val_metrics["style_top5"],
+        }, global_epoch)
+        writer.add_scalars("Accuracy/Artist_Top1", {
+            "train": train_metrics["artist_top1"],
+            "val": val_metrics["artist_top1"],
+        }, global_epoch)
+        writer.add_scalars("Accuracy/Artist_Top5", {
+            "train": train_metrics["artist_top5"],
+            "val": val_metrics["artist_top5"],
+        }, global_epoch)
+        writer.add_scalar("Time/Epoch_seconds", epoch_time, global_epoch)
+        writer.add_scalar("LearningRate/Backbone", optimizer.param_groups[0]["lr"], global_epoch)
+        writer.add_scalar("LearningRate/Heads", optimizer.param_groups[1]["lr"], global_epoch)
+
         # Sauvegarde de l'historique
         history["train"].append(train_metrics)
         history["val"].append(val_metrics)
@@ -698,8 +770,12 @@ def train(config: dict) -> None:
     with open(save_dir / "results.json", "w") as f:
         json.dump(results, f, indent=2)
 
+    # Fermeture du writer TensorBoard
+    writer.close()
+
     print(f"\nEntraînement terminé!")
     print(f"Résultats sauvegardés dans: {save_dir}")
+    print(f"TensorBoard: tensorboard --logdir {save_dir / 'tensorboard'}")
 
 
 # ============================================================================
