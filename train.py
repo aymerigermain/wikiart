@@ -19,7 +19,7 @@ import torch
 import torch.nn as nn
 from torch.optim import AdamW
 from torch.optim.lr_scheduler import CosineAnnealingLR, LinearLR, SequentialLR
-from torch.cuda.amp import GradScaler
+from torch.amp import GradScaler
 from torch.amp import autocast
 from tqdm import tqdm
 import numpy as np
@@ -472,7 +472,7 @@ def train(config: dict) -> None:
     )
 
     # ===== MIXED PRECISION =====
-    scaler = GradScaler() if config["use_amp"] else None
+    scaler = GradScaler('cuda') if config["use_amp"] else None
 
     # Historique des métriques
     history = {
