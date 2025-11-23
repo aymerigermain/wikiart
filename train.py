@@ -38,11 +38,11 @@ from models.classifier import WikiArtClassifier, MultiTaskLoss
 DEFAULT_CONFIG = {
     # Données
     "batch_size": 192,  # Augmenté pour meilleure utilisation GPU
-    "num_workers": 4,
+    "num_workers": 8,
     "image_size": 224,
 
     # Modèle
-    "backbone": "vit_small_patch16_224",  # Plus rapide que vit_base
+    "backbone": "vit_base_patch16_224", 
     "dropout": 0.3,  # Augmenté de 0.1 à 0.3 pour régularisation
 
     # Entraînement Phase 1 (backbone gelé)
