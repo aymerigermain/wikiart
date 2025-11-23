@@ -172,11 +172,15 @@ def print_dataset_stats(structure: dict) -> None:
 
 def download_or_use_cached():
     cache_path = Path("~/.cache/kagglehub/datasets/steubk/wikiart/versions/1").expanduser()
+    tmp_path = Path("/tmp/ia2vr_11-113461/datasets/steubk/wikiart/versions/1")
     if not cache_path.exists():
         return download_dataset()
+    elif not tmp_path.exists():
+        print(f"Using cached dataset in {tmp_path}")
+        return tmp_path
     else:
         print("Dataset already downloaded.")
-        print("Using cached dataset.")
+        print(f"Using cached dataset in {cache_path}")
         return cache_path
 
 if __name__ == "__main__":

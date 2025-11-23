@@ -36,7 +36,7 @@ from models.classifier import WikiArtClassifier, MultiTaskLoss
 DEFAULT_CONFIG = {
     # Données
     "batch_size": 192,  # Augmenté pour meilleure utilisation GPU
-    "num_workers": 8,
+    "num_workers": 4,
     "image_size": 224,
 
     # Modèle
