@@ -50,11 +50,12 @@ INFERENCE_TRANSFORMS = transforms.Compose([
 # ============================================================================
 
 def list_checkpoints() -> list[Path]:
-    """Liste tous les checkpoints disponibles."""
+    """Liste tous les checkpoints disponibles (y compris dans les sous-dossiers)."""
     if not CHECKPOINTS_DIR.exists():
         return []
 
-    checkpoints = list(CHECKPOINTS_DIR.glob("*.pt"))
+    # Chercher les .pt dans checkpoints/ et ses sous-dossiers
+    checkpoints = list(CHECKPOINTS_DIR.glob("**/*.pt"))
     return sorted(checkpoints, key=lambda x: x.stat().st_mtime, reverse=True)
 
 
@@ -255,9 +256,11 @@ def select_checkpoint_interactive() -> Optional[Path]:
     choice = input("Choisis un checkpoint (numéro ou 'best' pour le meilleur): ").strip()
 
     if choice.lower() == "best":
-        best_path = CHECKPOINTS_DIR / "best_model.pt"
-        if best_path.exists():
-            return best_path
+        # Chercher best_model.pt dans les sous-dossiers
+        best_paths = list(CHECKPOINTS_DIR.glob("**/best_model.pt"))
+        if best_paths:
+            # Prendre le plus récent
+            return max(best_paths, key=lambda x: x.stat().st_mtime)
         print("⚠️  best_model.pt non trouvé, utilisation du plus récent")
         return checkpoints[0]
 
@@ -359,7 +362,13 @@ Exemples:
     # Sélection du checkpoint
     if args.checkpoint:
         if args.checkpoint.lower() == "best":
-            checkpoint_path = CHECKPOINTS_DIR / "best_model.pt"
+            # Chercher best_model.pt dans les sous-dossiers
+            best_paths = list(CHECKPOINTS_DIR.glob("**/best_model.pt"))
+            if best_paths:
+                checkpoint_path = max(best_paths, key=lambda x: x.stat().st_mtime)
+            else:
+                print("❌ best_model.pt non trouvé")
+                return
         else:
             checkpoint_path = Path(args.checkpoint)
 
