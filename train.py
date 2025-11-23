@@ -11,6 +11,7 @@ Entraînement multi-tâche du classificateur ViT avec:
 import os
 import json
 import argparse
+import time
 from pathlib import Path
 from datetime import datetime
 from typing import Optional
@@ -78,6 +79,16 @@ DEFAULT_CONFIG = {
 # ============================================================================
 # FONCTIONS UTILITAIRES
 # ============================================================================
+
+def format_time(seconds: float) -> str:
+    """Formate un temps en secondes en format lisible (HH:MM:SS ou MM:SS)."""
+    hours = int(seconds // 3600)
+    minutes = int((seconds % 3600) // 60)
+    secs = int(seconds % 60)
+    if hours > 0:
+        return f"{hours:02d}:{minutes:02d}:{secs:02d}"
+    return f"{minutes:02d}:{secs:02d}"
+
 
 def setup_device() -> torch.device:
     """Configure et retourne le device (GPU si disponible)."""
@@ -489,6 +500,9 @@ def train(config: dict) -> None:
     print("PHASE 1: Entraînement des têtes (backbone gelé)")
     print("=" * 60)
 
+    # Temps de début de l'entraînement
+    training_start_time = time.time()
+
     # Early Stopping pour Phase 1
     early_stopping = EarlyStopping(
         patience=config.get("early_stopping_patience", 5),
@@ -521,6 +535,7 @@ def train(config: dict) -> None:
     )
 
     for epoch in range(config["phase1_epochs"]):
+        epoch_start_time = time.time()
         print(f"\nEpoch {epoch + 1}/{config['phase1_epochs']} (Phase 1)")
         print("-" * 40)
 
@@ -535,6 +550,10 @@ def train(config: dict) -> None:
         # Mise à jour du scheduler
         scheduler.step()
 
+        # Calcul des temps
+        epoch_time = time.time() - epoch_start_time
+        total_elapsed = time.time() - training_start_time
+
         # Logging
         print(f"Train - Loss: {train_metrics['loss_total']:.4f}, "
               f"Style Acc: {train_metrics['style_top1']:.2%}, "
@@ -542,6 +561,7 @@ def train(config: dict) -> None:
         print(f"Val   - Loss: {val_metrics['loss_total']:.4f}, "
               f"Style Acc: {val_metrics['style_top1']:.2%}, "
               f"Artist Acc: {val_metrics['artist_top1']:.2%}")
+        print(f"Temps - Epoch: {format_time(epoch_time)}, Total: {format_time(total_elapsed)}")
 
         # Sauvegarde de l'historique
         history["train"].append(train_metrics)
@@ -590,6 +610,7 @@ def train(config: dict) -> None:
     scheduler = CosineAnnealingLR(optimizer, T_max=config["phase2_epochs"])
 
     for epoch in range(config["phase2_epochs"]):
+        epoch_start_time = time.time()
         print(f"\nEpoch {epoch + 1}/{config['phase2_epochs']} (Phase 2)")
         print("-" * 40)
 
@@ -604,6 +625,10 @@ def train(config: dict) -> None:
         # Mise à jour du scheduler
         scheduler.step()
 
+        # Calcul des temps
+        epoch_time = time.time() - epoch_start_time
+        total_elapsed = time.time() - training_start_time
+
         # Logging
         print(f"Train - Loss: {train_metrics['loss_total']:.4f}, "
               f"Style Acc: {train_metrics['style_top1']:.2%}, "
@@ -611,6 +636,7 @@ def train(config: dict) -> None:
         print(f"Val   - Loss: {val_metrics['loss_total']:.4f}, "
               f"Style Acc: {val_metrics['style_top1']:.2%}, "
               f"Artist Acc: {val_metrics['artist_top1']:.2%}")
+        print(f"Temps - Epoch: {format_time(epoch_time)}, Total: {format_time(total_elapsed)}")
 
         # Sauvegarde de l'historique
         history["train"].append(train_metrics)
