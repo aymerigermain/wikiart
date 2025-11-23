@@ -458,7 +458,8 @@ def train(config: dict) -> None:
         dropout=config["dropout"],
     )
     model = model.to(device)
-    model = torch.compile(model)
+    # torch.compile désactivé - la compilation JIT bloque plusieurs minutes au premier batch
+    # model = torch.compile(model)
 
     # ===== LOSS =====
     criterion = MultiTaskLoss(
