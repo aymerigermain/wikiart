@@ -42,7 +42,8 @@ DEFAULT_CONFIG = {
     "image_size": 224,
 
     # Modèle
-    "backbone": "vit_base_patch16_224", 
+    "backbone": "ViT-B-16", # Avec timm : "vit_base_patch16_224",
+    "backbone_type": "clip",  # "timm" (ImageNet) ou "clip" (recommandé pour l'art)
     "dropout": 0.3,  # Augmenté de 0.1 à 0.3 pour régularisation
 
     # Entraînement Phase 1 (backbone gelé)
@@ -444,7 +445,7 @@ def train(config: dict) -> None:
     )
     print(f"Train: {len(train_samples)}, Val: {len(val_samples)}, Test: {len(test_samples)}")
 
-    # Création des DataLoaders
+    # Création des DataLoaders (avec normalisation adaptée au backbone)
     train_loader, val_loader, test_loader = create_dataloaders(
         train_samples,
         val_samples,
@@ -453,7 +454,8 @@ def train(config: dict) -> None:
         num_workers=config["num_workers"],
         use_weighted_sampler=True,
         num_styles=num_styles,
-        persistent_workers=True
+        persistent_workers=True,
+        backbone_type=config["backbone_type"],
     )
 
     # Calcul des poids de classe pour la loss
@@ -469,10 +471,12 @@ def train(config: dict) -> None:
         num_styles=num_styles,
         num_artists=num_artists,
         backbone_name=config["backbone"],
+        backbone_type=config["backbone_type"],
         pretrained=True,
         freeze_backbone=True,  # Phase 1: backbone gelé
         dropout=config["dropout"],
     )
+    print(f"Backbone: {config['backbone']} (type: {config['backbone_type']})")
     model = model.to(device)
     # torch.compile désactivé - la compilation JIT bloque plusieurs minutes au premier batch
     # model = torch.compile(model)
@@ -806,6 +810,11 @@ def parse_args():
     parser.add_argument("--phase2-lr-heads", type=float, default=DEFAULT_CONFIG["phase2_lr_heads"],
                         help="Learning rate heads phase 2")
 
+    # Backbone
+    parser.add_argument("--backbone-type", type=str, default=DEFAULT_CONFIG["backbone_type"],
+                        choices=["timm", "clip"],
+                        help="Type de backbone: 'timm' (ImageNet) ou 'clip' (recommandé pour l'art)")
+
     # Autres options
     parser.add_argument("--no-amp", action="store_true",
                         help="Désactiver mixed precision")
@@ -828,6 +837,7 @@ if __name__ == "__main__":
         "phase1_lr": args.phase1_lr,
         "phase2_lr_backbone": args.phase2_lr_backbone,
         "phase2_lr_heads": args.phase2_lr_heads,
+        "backbone_type": args.backbone_type,
         "use_amp": not args.no_amp,
         "save_dir": args.save_dir,
     })

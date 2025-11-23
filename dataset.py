@@ -84,6 +84,7 @@ def get_transforms(
     mode: Literal["train", "val", "test"],
     image_size: int = 224,
     augmentation_strength: Literal["light", "medium", "strong"] = "strong",
+    backbone_type: Literal["timm", "clip"] = "timm",
 ) -> transforms.Compose:
     """
     Get transforms for different modes.
@@ -92,15 +93,24 @@ def get_transforms(
         mode: One of "train", "val", "test".
         image_size: Target image size (default 224 for ViT).
         augmentation_strength: Intensity of augmentation for training.
+        backbone_type: "timm" (ImageNet norm) ou "clip" (CLIP norm).
 
     Returns:
         Composed transforms.
     """
-    # ImageNet normalization (standard for pretrained models)
-    normalize = transforms.Normalize(
-        mean=[0.485, 0.456, 0.406],
-        std=[0.229, 0.224, 0.225]
-    )
+    # Normalisation selon le backbone
+    if backbone_type == "clip":
+        # CLIP utilise une normalisation différente
+        normalize = transforms.Normalize(
+            mean=[0.48145466, 0.4578275, 0.40821073],
+            std=[0.26862954, 0.26130258, 0.27577711]
+        )
+    else:
+        # ImageNet normalization (standard for timm pretrained models)
+        normalize = transforms.Normalize(
+            mean=[0.485, 0.456, 0.406],
+            std=[0.229, 0.224, 0.225]
+        )
 
     if mode == "train":
         # Configuration selon la force d'augmentation
@@ -253,6 +263,7 @@ def create_dataloaders(
     use_weighted_sampler: bool = True,
     num_styles: int = 27,
     persistent_workers: bool = True,
+    backbone_type: Literal["timm", "clip"] = "timm",
 ) -> tuple[DataLoader, DataLoader, DataLoader]:
     """
     Create DataLoaders for train/val/test sets.
@@ -265,6 +276,7 @@ def create_dataloaders(
         num_workers: Number of data loading workers.
         use_weighted_sampler: Use weighted sampling to handle class imbalance.
         num_styles: Number of style classes (for weighted sampler).
+        backbone_type: "timm" ou "clip" pour adapter la normalisation.
 
     Returns:
         Tuple of (train_loader, val_loader, test_loader).
@@ -279,19 +291,19 @@ def create_dataloaders(
         list(train_paths),
         list(train_styles),
         list(train_artists),
-        transform=get_transforms("train", augmentation_strength="strong"),
+        transform=get_transforms("train", augmentation_strength="strong", backbone_type=backbone_type),
     )
     val_dataset = WikiArtDataset(
         list(val_paths),
         list(val_styles),
         list(val_artists),
-        transform=get_transforms("val"),
+        transform=get_transforms("val", backbone_type=backbone_type),
     )
     test_dataset = WikiArtDataset(
         list(test_paths),
         list(test_styles),
         list(test_artists),
-        transform=get_transforms("test"),
+        transform=get_transforms("test", backbone_type=backbone_type),
     )
 
     # Create weighted sampler for training (handles class imbalance)

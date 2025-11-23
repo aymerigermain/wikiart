@@ -5,15 +5,25 @@ Architecture multi-tâche basée sur Vision Transformer (ViT) avec deux têtes :
 - Tête de classification des styles artistiques (27 classes)
 - Tête de classification des artistes (1119 classes)
 
-Le backbone ViT est pré-entraîné sur ImageNet et fine-tuné sur WikiArt.
+Supporte deux types de backbone:
+- timm: ViT pré-entraîné sur ImageNet (défaut)
+- clip: ViT pré-entraîné avec CLIP (meilleur pour l'art)
 """
 
-from typing import Optional
+from typing import Optional, Literal
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import timm
+
+# Import conditionnel de CLIP (open_clip est plus flexible que le CLIP original)
+try:
+    import open_clip
+    CLIP_AVAILABLE = True
+except ImportError:
+    CLIP_AVAILABLE = False
+    print("Warning: open_clip not installed. Install with: pip install open-clip-torch")
 
 
 class FocalLoss(nn.Module):
@@ -142,6 +152,55 @@ class MLPHead(nn.Module):
         return self.net(x)
 
 
+class CLIPVisionBackbone(nn.Module):
+    """
+    Wrapper pour utiliser CLIP ViT comme backbone.
+
+    CLIP a été entraîné sur 400M paires image-texte incluant beaucoup d'art,
+    ce qui le rend plus adapté que ImageNet pour la classification artistique.
+    """
+
+    def __init__(
+        self,
+        model_name: str = "ViT-B-16",
+        pretrained: str = "openai",
+    ):
+        super().__init__()
+
+        if not CLIP_AVAILABLE:
+            raise ImportError(
+                "open_clip is required for CLIP backbone. "
+                "Install with: pip install open-clip-torch"
+            )
+
+        # Charger le modèle CLIP
+        self.clip_model, _, self.preprocess = open_clip.create_model_and_transforms(
+            model_name,
+            pretrained=pretrained,
+        )
+
+        # On ne garde que la partie vision
+        self.visual = self.clip_model.visual
+
+        # Dimension des features (768 pour ViT-B, 1024 pour ViT-L)
+        self.num_features = self.visual.output_dim
+
+        # Pour compatibilité avec l'API timm (utilisé dans unfreeze_backbone)
+        # CLIP ViT utilise transformer.resblocks au lieu de blocks
+        if hasattr(self.visual, 'transformer'):
+            self.blocks = self.visual.transformer.resblocks
+        else:
+            self.blocks = []
+
+        print(f"CLIP backbone chargé: {model_name} (pretrained={pretrained})")
+        print(f"  - Feature dim: {self.num_features}")
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """Extrait les features visuelles."""
+        # CLIP normalise différemment, mais on gère ça dans le dataset
+        return self.visual(x)
+
+
 class WikiArtClassifier(nn.Module):
     """
     Classificateur multi-tâche pour WikiArt.
@@ -152,14 +211,14 @@ class WikiArtClassifier(nn.Module):
            │
            ▼
     ┌─────────────────┐
-    │   ViT-B/16      │  <- Backbone pré-entraîné ImageNet
+    │   ViT-B/16      │  <- Backbone: timm (ImageNet) ou CLIP
     │  (frozen ou     │
     │   fine-tuned)   │
     └────────┬────────┘
              │
              ▼
       Features [CLS]
-        (768 dim)
+      (768 ou 512 dim)
              │
         ┌────┴────┐
         │         │
@@ -176,8 +235,9 @@ class WikiArtClassifier(nn.Module):
     Args:
         num_styles: Nombre de styles artistiques (défaut: 27)
         num_artists: Nombre d'artistes (défaut: 1119)
-        backbone_name: Nom du modèle timm à utiliser
-        pretrained: Utiliser les poids pré-entraînés ImageNet
+        backbone_name: Nom du modèle (timm ou CLIP selon backbone_type)
+        backbone_type: "timm" ou "clip"
+        pretrained: Utiliser les poids pré-entraînés
         freeze_backbone: Geler le backbone (entraîner seulement les têtes)
         dropout: Taux de dropout dans les têtes
     """
@@ -187,6 +247,7 @@ class WikiArtClassifier(nn.Module):
         num_styles: int = 27,
         num_artists: int = 1119,
         backbone_name: str = "vit_base_patch16_224",
+        backbone_type: Literal["timm", "clip"] = "timm",
         pretrained: bool = True,
         freeze_backbone: bool = False,
         dropout: float = 0.1,
@@ -195,24 +256,38 @@ class WikiArtClassifier(nn.Module):
 
         self.num_styles = num_styles
         self.num_artists = num_artists
+        self.backbone_type = backbone_type
 
         # ===== BACKBONE =====
-        # Chargement du ViT pré-entraîné via timm
-        # num_classes=0 retire la tête de classification originale
-        # et retourne directement les features [CLS]
-        self.backbone = timm.create_model(
-            backbone_name,
-            pretrained=pretrained,
-            num_classes=0,  # Pas de tête, on veut juste les features
-        )
+        if backbone_type == "clip":
+            # Utiliser CLIP comme backbone
+            # Mapping des noms pour CLIP
+            clip_model_map = {
+                "vit_base_patch16_224": "ViT-B-16",
+                "vit_large_patch14_224": "ViT-L-14",
+                "ViT-B-16": "ViT-B-16",
+                "ViT-L-14": "ViT-L-14",
+                "ViT-B-32": "ViT-B-32",
+            }
+            clip_name = clip_model_map.get(backbone_name, backbone_name)
 
-        # Récupération de la dimension des features
-        # Pour ViT-B/16: 768 dimensions
-        self.feature_dim = self.backbone.num_features
+            self.backbone = CLIPVisionBackbone(
+                model_name=clip_name,
+                pretrained="openai" if pretrained else None,
+            )
+            self.feature_dim = self.backbone.num_features
+
+        else:  # timm (défaut)
+            # Chargement du ViT pré-entraîné via timm
+            # num_classes=0 retire la tête de classification originale
+            self.backbone = timm.create_model(
+                backbone_name,
+                pretrained=pretrained,
+                num_classes=0,  # Pas de tête, on veut juste les features
+            )
+            self.feature_dim = self.backbone.num_features
 
         # Gel du backbone si demandé
-        # Utile pour la première phase d'entraînement où on entraîne
-        # seulement les têtes avec un lr plus élevé
         if freeze_backbone:
             self._freeze_backbone()
 
@@ -221,7 +296,6 @@ class WikiArtClassifier(nn.Module):
         hidden_dim = self.feature_dim * 2
 
         # Tête pour les styles (27 classes)
-        # Tâche plus facile -> MLP standard
         self.style_head = MLPHead(
             in_features=self.feature_dim,
             hidden_features=hidden_dim,
@@ -230,8 +304,6 @@ class WikiArtClassifier(nn.Module):
         )
 
         # Tête pour les artistes (1119 classes)
-        # Tâche plus difficile avec beaucoup de classes
-        # Même architecture mais la Focal Loss aidera à gérer le déséquilibre
         self.artist_head = MLPHead(
             in_features=self.feature_dim,
             hidden_features=hidden_dim,

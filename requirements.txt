@@ -1,3 +1,6 @@
 # Requirements for WikiArt dataset download
 # Téléchargement des données
 kagglehub==0.3.13
+
+# CLIP backbone (optionnel, pour --backbone-type clip)
+open-clip-torch
