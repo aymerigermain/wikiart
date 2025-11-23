@@ -18,7 +18,7 @@ from PIL import Image
 import numpy as np
 from sklearn.model_selection import train_test_split
 
-from data import download_dataset, discover_structure, build_label_mappings, extract_artist_name
+from data import discover_structure, build_label_mappings, download_or_use_cached, extract_artist_name
 
 
 class WikiArtDataset(Dataset):
@@ -311,7 +311,7 @@ def get_class_weights(
 if __name__ == "__main__":
     # Test the dataset pipeline
     print("Downloading and discovering dataset...")
-    dataset_path = download_dataset()
+    dataset_path = download_or_use_cached()
     structure = discover_structure(dataset_path)
 
     print(f"\nDataset contains {structure['total_images']} images")

@@ -170,17 +170,19 @@ def print_dataset_stats(structure: dict) -> None:
         print(f"  {style}: {count:,}")
     print("=" * 50)
 
+def download_or_use_cached():
+    cache_path = Path("~/.cache/kagglehub/datasets/steubk/wikiart/versions/1").expanduser()
+    if not cache_path.exists():
+        return download_dataset()
+    else:
+        print("Dataset already downloaded.")
+        print("Using cached dataset.")
+        return cache_path
 
 if __name__ == "__main__":
     # Download dataset
     print("Downloading WikiArt dataset...")
-    if not Path("~/.cache/kagglehub/datasets/steubk/wikiart/versions/1").expanduser().exists():
-        dataset_path = download_dataset()
-    else:
-        print("Dataset already downloaded.")
-        print("Using cached dataset.")
-        dataset_path = Path("~/.cache/kagglehub/datasets/steubk/wikiart/versions/1").expanduser()
-    
+    dataset_path = download_or_use_cached()
     print(f"Dataset path: {dataset_path}")
 
     # Discover structure
