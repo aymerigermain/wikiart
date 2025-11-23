@@ -174,8 +174,9 @@ def print_dataset_stats(structure: dict) -> None:
 if __name__ == "__main__":
     # Download dataset
     print("Downloading WikiArt dataset...")
-    dataset_path = download_dataset()
-    print(f"Dataset path: {dataset_path}")
+    # dataset_path = download_dataset()
+    # print(f"Dataset path: {dataset_path}")
+    dataset_path = Path("~/.cache/kagglehub/datasets/steubk/wikiart/versions/1").expanduser()
 
     # Discover structure
     print("\nDiscovering dataset structure...")
