@@ -194,6 +194,7 @@ def create_dataloaders(
     num_workers: int = 4,
     use_weighted_sampler: bool = True,
     num_styles: int = 27,
+    persistent_workers: bool = True,
 ) -> tuple[DataLoader, DataLoader, DataLoader]:
     """
     Create DataLoaders for train/val/test sets.
@@ -259,8 +260,10 @@ def create_dataloaders(
         shuffle=shuffle_train,
         sampler=train_sampler,
         num_workers=num_workers,
+        persistent_workers=persistent_workers, # Maintient les workers actifs entre les epochs
         pin_memory=True,
         drop_last=True,  # For stable batch norm
+        prefetch_factor=4, # Permet de précharger plusieurs batches
     )
 
     val_loader = DataLoader(
@@ -268,7 +271,9 @@ def create_dataloaders(
         batch_size=batch_size,
         shuffle=False,
         num_workers=num_workers,
+        persistent_workers=persistent_workers,
         pin_memory=True,
+        prefetch_factor=4, # Permet de précharger plusieurs batches
     )
 
     test_loader = DataLoader(
@@ -276,7 +281,9 @@ def create_dataloaders(
         batch_size=batch_size,
         shuffle=False,
         num_workers=num_workers,
+        persistent_workers=persistent_workers,
         pin_memory=True,
+        prefetch_factor=4, # Permet de précharger plusieurs batches
     )
 
     return train_loader, val_loader, test_loader

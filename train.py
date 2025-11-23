@@ -19,7 +19,8 @@ import torch
 import torch.nn as nn
 from torch.optim import AdamW
 from torch.optim.lr_scheduler import CosineAnnealingLR, LinearLR, SequentialLR
-from torch.cuda.amp import GradScaler, autocast
+from torch.cuda.amp import GradScaler
+from torch.amp import autocast
 from tqdm import tqdm
 import numpy as np
 
@@ -34,8 +35,8 @@ from models.classifier import WikiArtClassifier, MultiTaskLoss
 
 DEFAULT_CONFIG = {
     # Données
-    "batch_size": 32,
-    "num_workers": 4,
+    "batch_size": 128,
+    "num_workers": 8,
     "image_size": 224,
 
     # Modèle
@@ -201,7 +202,7 @@ def train_one_epoch(
         optimizer.zero_grad()
 
         if use_amp and scaler is not None:
-            with autocast():
+            with autocast("cuda"):
                 outputs = model(images)
                 losses = criterion(
                     outputs["style_logits"],
@@ -369,6 +370,7 @@ def train(config: dict) -> None:
         num_workers=config["num_workers"],
         use_weighted_sampler=True,
         num_styles=num_styles,
+        persistent_workers=True
     )
 
     # Calcul des poids de classe pour la loss
@@ -389,6 +391,7 @@ def train(config: dict) -> None:
         dropout=config["dropout"],
     )
     model = model.to(device)
+    model = torch.compile(model)
 
     # ===== LOSS =====
     criterion = MultiTaskLoss(
