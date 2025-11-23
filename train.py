@@ -35,38 +35,43 @@ from models.classifier import WikiArtClassifier, MultiTaskLoss
 
 DEFAULT_CONFIG = {
     # Données
-    "batch_size": 128,
+    "batch_size": 192,  # Augmenté pour meilleure utilisation GPU
     "num_workers": 8,
     "image_size": 224,
 
     # Modèle
-    "backbone": "vit_base_patch16_224",
-    "dropout": 0.1,
+    "backbone": "vit_small_patch16_224",  # Plus rapide que vit_base
+    "dropout": 0.3,  # Augmenté de 0.1 à 0.3 pour régularisation
 
     # Entraînement Phase 1 (backbone gelé)
-    "phase1_epochs": 10,
-    "phase1_lr": 1e-3,  # LR élevé pour les têtes
+    "phase1_epochs": 15,  # Augmenté pour mieux entraîner les têtes
+    "phase1_lr": 5e-4,    # Réduit de 1e-3 pour éviter l'overfitting rapide
 
     # Entraînement Phase 2 (fine-tuning)
-    "phase2_epochs": 20,
-    "phase2_lr_backbone": 1e-5,  # LR faible pour le backbone
-    "phase2_lr_heads": 1e-4,     # LR modéré pour les têtes
-    "unfreeze_layers": 6,        # Nombre de blocs ViT à dégeler
+    "phase2_epochs": 25,
+    "phase2_lr_backbone": 5e-6,   # Réduit pour fine-tuning plus doux
+    "phase2_lr_heads": 5e-5,      # Réduit pour stabilité
+    "unfreeze_layers": 4,         # Moins de couches dégelées (était 6)
 
     # Optimisation
-    "weight_decay": 0.01,
-    "warmup_epochs": 2,
-    "use_amp": True,  # Mixed precision (économise mémoire GPU)
+    "weight_decay": 0.05,  # Augmenté de 0.01 pour plus de régularisation
+    "warmup_epochs": 3,    # Plus de warmup
+    "use_amp": True,
 
     # Loss
     "style_weight": 1.0,
-    "artist_weight": 0.5,
+    "artist_weight": 0.3,      # Réduit (artiste est très difficile)
     "use_focal_loss": True,
     "focal_gamma": 2.0,
+    "label_smoothing": 0.1,    # NOUVEAU: évite l'overconfidence
+
+    # Early Stopping
+    "early_stopping_patience": 4,  # Arrêter si pas d'amélioration pendant 4 epochs
+    "early_stopping_min_delta": 0.001,  # Amélioration minimale requise
 
     # Sauvegarde
     "save_dir": "checkpoints",
-    "save_every": 5,  # Sauvegarder tous les N epochs
+    "save_every": 5,
 }
 
 
@@ -78,8 +83,12 @@ def setup_device() -> torch.device:
     """Configure et retourne le device (GPU si disponible)."""
     if torch.cuda.is_available():
         device = torch.device("cuda")
+        # Optimisations GPU
+        torch.set_float32_matmul_precision('high')
+        torch.backends.cudnn.benchmark = True
         print(f"Utilisation du GPU: {torch.cuda.get_device_name(0)}")
         print(f"Mémoire GPU disponible: {torch.cuda.get_device_properties(0).total_memory / 1e9:.1f} GB")
+        print("TensorFloat32 activé, cuDNN benchmark activé")
     else:
         device = torch.device("cpu")
         print("GPU non disponible, utilisation du CPU")
@@ -155,6 +164,64 @@ class MetricTracker:
             key: self.metrics[key] / self.counts[key]
             for key in self.metrics
         }
+
+
+class EarlyStopping:
+    """
+    Early Stopping pour éviter l'overfitting.
+
+    Arrête l'entraînement si la métrique de validation ne s'améliore plus.
+    """
+
+    def __init__(self, patience: int = 5, min_delta: float = 0.001, mode: str = "max"):
+        """
+        Args:
+            patience: Nombre d'epochs sans amélioration avant l'arrêt
+            min_delta: Amélioration minimale pour considérer un progrès
+            mode: 'max' pour accuracy, 'min' pour loss
+        """
+        self.patience = patience
+        self.min_delta = min_delta
+        self.mode = mode
+        self.counter = 0
+        self.best_score = None
+        self.should_stop = False
+
+    def __call__(self, score: float) -> bool:
+        """
+        Vérifie si l'entraînement doit s'arrêter.
+
+        Args:
+            score: Métrique de validation actuelle
+
+        Returns:
+            True si l'entraînement doit s'arrêter
+        """
+        if self.best_score is None:
+            self.best_score = score
+            return False
+
+        if self.mode == "max":
+            improved = score > self.best_score + self.min_delta
+        else:
+            improved = score < self.best_score - self.min_delta
+
+        if improved:
+            self.best_score = score
+            self.counter = 0
+        else:
+            self.counter += 1
+            if self.counter >= self.patience:
+                self.should_stop = True
+                return True
+
+        return False
+
+    def reset(self):
+        """Réinitialise l'early stopping (pour une nouvelle phase)."""
+        self.counter = 0
+        self.best_score = None
+        self.should_stop = False
 
 
 # ============================================================================
@@ -399,6 +466,7 @@ def train(config: dict) -> None:
         artist_weight=config["artist_weight"],
         use_focal_loss=config["use_focal_loss"],
         focal_gamma=config["focal_gamma"],
+        label_smoothing=config.get("label_smoothing", 0.0),
         style_class_weights=style_weights.to(device),
         artist_class_weights=artist_weights.to(device),
     )
@@ -419,6 +487,13 @@ def train(config: dict) -> None:
     print("\n" + "=" * 60)
     print("PHASE 1: Entraînement des têtes (backbone gelé)")
     print("=" * 60)
+
+    # Early Stopping pour Phase 1
+    early_stopping = EarlyStopping(
+        patience=config.get("early_stopping_patience", 5),
+        min_delta=config.get("early_stopping_min_delta", 0.001),
+        mode="max",
+    )
 
     # Optimiseur pour les têtes uniquement
     optimizer = AdamW(
@@ -484,12 +559,21 @@ def train(config: dict) -> None:
             }, save_dir / "best_model.pt")
             print(f"  -> Nouveau meilleur modèle sauvegardé (acc: {best_val_acc:.2%})")
 
+        # Early Stopping check
+        if early_stopping(val_metrics["style_top1"]):
+            print(f"\n  Early stopping déclenché après {epoch + 1} epochs (Phase 1)")
+            print(f"  Pas d'amélioration depuis {early_stopping.patience} epochs")
+            break
+
     # =========================================================================
     # PHASE 2: FINE-TUNING DU BACKBONE
     # =========================================================================
     print("\n" + "=" * 60)
     print("PHASE 2: Fine-tuning du backbone")
     print("=" * 60)
+
+    # Reset Early Stopping pour Phase 2
+    early_stopping.reset()
 
     # Dégeler les dernières couches du backbone
     model.unfreeze_backbone(unfreeze_layers=config["unfreeze_layers"])
@@ -553,6 +637,12 @@ def train(config: dict) -> None:
                 "optimizer_state_dict": optimizer.state_dict(),
                 "val_metrics": val_metrics,
             }, save_dir / f"checkpoint_epoch_{config['phase1_epochs'] + epoch + 1}.pt")
+
+        # Early Stopping check
+        if early_stopping(val_metrics["style_top1"]):
+            print(f"\n  Early stopping déclenché après {epoch + 1} epochs (Phase 2)")
+            print(f"  Pas d'amélioration depuis {early_stopping.patience} epochs")
+            break
 
     # =========================================================================
     # ÉVALUATION FINALE

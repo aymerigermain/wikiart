@@ -83,6 +83,7 @@ class WikiArtDataset(Dataset):
 def get_transforms(
     mode: Literal["train", "val", "test"],
     image_size: int = 224,
+    augmentation_strength: Literal["light", "medium", "strong"] = "strong",
 ) -> transforms.Compose:
     """
     Get transforms for different modes.
@@ -90,6 +91,7 @@ def get_transforms(
     Args:
         mode: One of "train", "val", "test".
         image_size: Target image size (default 224 for ViT).
+        augmentation_strength: Intensity of augmentation for training.
 
     Returns:
         Composed transforms.
@@ -101,21 +103,77 @@ def get_transforms(
     )
 
     if mode == "train":
-        return transforms.Compose([
-            transforms.RandomResizedCrop(image_size, scale=(0.8, 1.0)),
-            transforms.RandomHorizontalFlip(p=0.3),
-            transforms.ColorJitter(
-                brightness=0.1,
-                contrast=0.1,
-                saturation=0.1,
-                hue=0.02  # Subtle hue shift to preserve art colors
+        # Configuration selon la force d'augmentation
+        if augmentation_strength == "light":
+            scale = (0.8, 1.0)
+            color_jitter = (0.1, 0.1, 0.1, 0.02)
+            flip_p = 0.3
+            rotation = 0
+            erasing_p = 0.0
+        elif augmentation_strength == "medium":
+            scale = (0.7, 1.0)
+            color_jitter = (0.2, 0.2, 0.2, 0.05)
+            flip_p = 0.4
+            rotation = 10
+            erasing_p = 0.1
+        else:  # strong - recommandé pour combattre l'overfitting
+            scale = (0.6, 1.0)
+            color_jitter = (0.3, 0.3, 0.3, 0.1)
+            flip_p = 0.5
+            rotation = 15
+            erasing_p = 0.2
+
+        transform_list = [
+            # Crop aléatoire plus agressif
+            transforms.RandomResizedCrop(
+                image_size,
+                scale=scale,
+                ratio=(0.75, 1.33),  # Permet des ratios variés
+                interpolation=transforms.InterpolationMode.BICUBIC,
             ),
+            # Rotation légère (préserve la composition artistique)
+            transforms.RandomRotation(
+                degrees=rotation,
+                interpolation=transforms.InterpolationMode.BICUBIC,
+            ),
+            # Flip horizontal (attention aux portraits, mais aide à généraliser)
+            transforms.RandomHorizontalFlip(p=flip_p),
+            # Variations de couleur plus fortes
+            transforms.ColorJitter(
+                brightness=color_jitter[0],
+                contrast=color_jitter[1],
+                saturation=color_jitter[2],
+                hue=color_jitter[3],
+            ),
+            # Parfois convertir en niveaux de gris (force le modèle à regarder les formes)
+            transforms.RandomGrayscale(p=0.05),
+            # Gaussian blur léger (simule différentes qualités de scan)
+            transforms.RandomApply([
+                transforms.GaussianBlur(kernel_size=3, sigma=(0.1, 1.0))
+            ], p=0.1),
             transforms.ToTensor(),
             normalize,
-        ])
+        ]
+
+        # Random Erasing après ToTensor (simule occlusions, force features robustes)
+        if erasing_p > 0:
+            transform_list.append(
+                transforms.RandomErasing(
+                    p=erasing_p,
+                    scale=(0.02, 0.15),
+                    ratio=(0.3, 3.3),
+                    value="random",
+                )
+            )
+
+        return transforms.Compose(transform_list)
+
     else:  # val or test
         return transforms.Compose([
-            transforms.Resize(int(image_size * 1.14)),  # 256 for 224
+            transforms.Resize(
+                int(image_size * 1.14),
+                interpolation=transforms.InterpolationMode.BICUBIC,
+            ),
             transforms.CenterCrop(image_size),
             transforms.ToTensor(),
             normalize,
@@ -216,12 +274,12 @@ def create_dataloaders(
     val_paths, val_styles, val_artists = zip(*val_samples)
     test_paths, test_styles, test_artists = zip(*test_samples)
 
-    # Create datasets
+    # Create datasets avec augmentation forte pour combattre l'overfitting
     train_dataset = WikiArtDataset(
         list(train_paths),
         list(train_styles),
         list(train_artists),
-        transform=get_transforms("train"),
+        transform=get_transforms("train", augmentation_strength="strong"),
     )
     val_dataset = WikiArtDataset(
         list(val_paths),

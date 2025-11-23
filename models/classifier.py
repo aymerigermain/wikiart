@@ -337,21 +337,87 @@ class WikiArtClassifier(nn.Module):
         }
 
 
+class LabelSmoothingFocalLoss(nn.Module):
+    """
+    Focal Loss avec Label Smoothing pour réduire l'overconfidence.
+
+    Combine les avantages de:
+    - Focal Loss: focus sur les exemples difficiles
+    - Label Smoothing: évite que le modèle soit trop confiant
+
+    Args:
+        alpha: Poids par classe (optionnel)
+        gamma: Facteur de focalisation (défaut: 2.0)
+        smoothing: Facteur de label smoothing (défaut: 0.1)
+        reduction: 'mean', 'sum' ou 'none'
+    """
+
+    def __init__(
+        self,
+        alpha: Optional[torch.Tensor] = None,
+        gamma: float = 2.0,
+        smoothing: float = 0.1,
+        reduction: str = "mean",
+    ):
+        super().__init__()
+        self.alpha = alpha
+        self.gamma = gamma
+        self.smoothing = smoothing
+        self.reduction = reduction
+
+    def forward(self, inputs: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
+        """Calcule la Focal Loss avec Label Smoothing."""
+        num_classes = inputs.size(-1)
+
+        # Appliquer label smoothing aux targets
+        # Au lieu de [0, 0, 1, 0, 0], on obtient [0.025, 0.025, 0.9, 0.025, 0.025]
+        with torch.no_grad():
+            smooth_targets = torch.zeros_like(inputs)
+            smooth_targets.fill_(self.smoothing / (num_classes - 1))
+            smooth_targets.scatter_(1, targets.unsqueeze(1), 1.0 - self.smoothing)
+
+        # Log softmax pour la stabilité numérique
+        log_probs = F.log_softmax(inputs, dim=-1)
+        probs = torch.exp(log_probs)
+
+        # Focal weight: (1 - p)^gamma pour chaque classe
+        focal_weights = (1 - probs) ** self.gamma
+
+        # Loss avec label smoothing
+        loss = -smooth_targets * focal_weights * log_probs
+
+        # Application des poids par classe si fournis
+        if self.alpha is not None:
+            if self.alpha.device != inputs.device:
+                self.alpha = self.alpha.to(inputs.device)
+            # Pondérer par alpha
+            loss = loss * self.alpha.unsqueeze(0)
+
+        # Somme sur les classes
+        loss = loss.sum(dim=-1)
+
+        if self.reduction == "mean":
+            return loss.mean()
+        elif self.reduction == "sum":
+            return loss.sum()
+        return loss
+
+
 class MultiTaskLoss(nn.Module):
     """
     Loss combinée pour l'entraînement multi-tâche.
 
     Combine les pertes de classification style et artiste avec des poids
-    configurables et optionnellement la Focal Loss.
+    configurables et optionnellement la Focal Loss avec Label Smoothing.
 
     Loss totale = lambda_style * L_style + lambda_artist * L_artist
 
     Args:
         style_weight: Poids pour la loss style (défaut: 1.0)
         artist_weight: Poids pour la loss artiste (défaut: 0.5)
-                      Plus faible car tâche plus difficile
         use_focal_loss: Utiliser Focal Loss au lieu de CrossEntropy
         focal_gamma: Paramètre gamma de la Focal Loss
+        label_smoothing: Facteur de label smoothing (défaut: 0.0)
         style_class_weights: Poids par classe pour les styles (optionnel)
         artist_class_weights: Poids par classe pour les artistes (optionnel)
     """
@@ -362,6 +428,7 @@ class MultiTaskLoss(nn.Module):
         artist_weight: float = 0.5,
         use_focal_loss: bool = True,
         focal_gamma: float = 2.0,
+        label_smoothing: float = 0.0,
         style_class_weights: Optional[torch.Tensor] = None,
         artist_class_weights: Optional[torch.Tensor] = None,
     ):
@@ -372,18 +439,38 @@ class MultiTaskLoss(nn.Module):
 
         # Création des fonctions de loss
         if use_focal_loss:
-            self.style_loss_fn = FocalLoss(
-                alpha=style_class_weights,
-                gamma=focal_gamma,
-            )
-            self.artist_loss_fn = FocalLoss(
-                alpha=artist_class_weights,
-                gamma=focal_gamma,
-            )
+            if label_smoothing > 0:
+                # Focal Loss + Label Smoothing (recommandé pour éviter overfitting)
+                self.style_loss_fn = LabelSmoothingFocalLoss(
+                    alpha=style_class_weights,
+                    gamma=focal_gamma,
+                    smoothing=label_smoothing,
+                )
+                self.artist_loss_fn = LabelSmoothingFocalLoss(
+                    alpha=artist_class_weights,
+                    gamma=focal_gamma,
+                    smoothing=label_smoothing,
+                )
+            else:
+                # Focal Loss standard
+                self.style_loss_fn = FocalLoss(
+                    alpha=style_class_weights,
+                    gamma=focal_gamma,
+                )
+                self.artist_loss_fn = FocalLoss(
+                    alpha=artist_class_weights,
+                    gamma=focal_gamma,
+                )
         else:
-            # CrossEntropy standard avec poids optionnels
-            self.style_loss_fn = nn.CrossEntropyLoss(weight=style_class_weights)
-            self.artist_loss_fn = nn.CrossEntropyLoss(weight=artist_class_weights)
+            # CrossEntropy avec label smoothing optionnel
+            self.style_loss_fn = nn.CrossEntropyLoss(
+                weight=style_class_weights,
+                label_smoothing=label_smoothing,
+            )
+            self.artist_loss_fn = nn.CrossEntropyLoss(
+                weight=artist_class_weights,
+                label_smoothing=label_smoothing,
+            )
 
     def forward(
         self,
