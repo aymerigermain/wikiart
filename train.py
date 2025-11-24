@@ -26,7 +26,7 @@ from tqdm import tqdm
 import numpy as np
 from torch.utils.tensorboard import SummaryWriter
 
-from data import download_or_use_cached, discover_structure, build_label_mappings
+from data import download_or_use_cached, discover_structure, build_label_mappings, filter_artists_by_count
 from dataset import create_splits, create_dataloaders, get_class_weights
 from models.classifier import WikiArtClassifier, MultiTaskLoss
 
@@ -67,6 +67,9 @@ DEFAULT_CONFIG = {
     "use_focal_loss": True,
     "focal_gamma": 2.0,
     "label_smoothing": 0.1,    # NOUVEAU: évite l'overconfidence
+
+    # Filtrage artistes
+    "min_artist_images": 50,    # 0 = pas de filtrage, ex: 50 = artistes avec ≥50 images
 
     # Early Stopping
     "early_stopping_patience": 4,  # Arrêter si pas d'amélioration pendant 4 epochs
@@ -433,6 +436,12 @@ def train(config: dict) -> None:
 
     dataset_path = download_or_use_cached()
     structure = discover_structure(dataset_path)
+
+    # Filtrage des artistes avec peu d'images
+    min_artist_images = config.get("min_artist_images", 0)
+    if min_artist_images > 0:
+        structure = filter_artists_by_count(structure, min_artist_images)
+
     style2idx, idx2style, artist2idx, idx2artist = build_label_mappings(structure)
 
     num_styles = len(structure["styles"])
@@ -815,6 +824,10 @@ def parse_args():
                         choices=["timm", "clip"],
                         help="Type de backbone: 'timm' (ImageNet) ou 'clip' (recommandé pour l'art)")
 
+    # Filtrage artistes
+    parser.add_argument("--min-artist-images", type=int, default=DEFAULT_CONFIG["min_artist_images"],
+                        help="Nombre min d'images par artiste (0=pas de filtrage, ex: 50)")
+
     # Autres options
     parser.add_argument("--no-amp", action="store_true",
                         help="Désactiver mixed precision")
@@ -838,6 +851,7 @@ if __name__ == "__main__":
         "phase2_lr_backbone": args.phase2_lr_backbone,
         "phase2_lr_heads": args.phase2_lr_heads,
         "backbone_type": args.backbone_type,
+        "min_artist_images": args.min_artist_images,
         "use_amp": not args.no_amp,
         "save_dir": args.save_dir,
     })

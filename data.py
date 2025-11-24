@@ -112,6 +112,66 @@ def extract_artist_name(filename: str) -> str:
     return filename
 
 
+def filter_artists_by_count(structure: dict, min_images: int) -> dict:
+    """
+    Filtre les artistes ayant moins de min_images images.
+
+    Les images d'artistes filtrés sont retirées du dataset.
+    Les artistes filtrés sont regroupés sous "unknown_artist".
+
+    Args:
+        structure: Dataset structure from discover_structure().
+        min_images: Nombre minimum d'images pour garder un artiste.
+
+    Returns:
+        Structure filtrée avec moins d'artistes et d'images.
+    """
+    if min_images <= 0:
+        return structure
+
+    # Identifier les artistes à garder
+    artists_to_keep = {
+        artist for artist, images in structure['artist_to_images'].items()
+        if len(images) >= min_images
+    }
+
+    # Reconstruire la structure filtrée
+    filtered_style_to_images = {}
+    filtered_artist_to_images = {artist: [] for artist in artists_to_keep}
+    filtered_style_to_artists = {}
+
+    total_removed = 0
+    for style, images in structure['style_to_images'].items():
+        filtered_images = []
+        style_artists = set()
+
+        for image_path in images:
+            artist_name = extract_artist_name(image_path.stem)
+            if artist_name in artists_to_keep:
+                filtered_images.append(image_path)
+                filtered_artist_to_images[artist_name].append(image_path)
+                style_artists.add(artist_name)
+            else:
+                total_removed += 1
+
+        if filtered_images:
+            filtered_style_to_images[style] = filtered_images
+            filtered_style_to_artists[style] = sorted(style_artists)
+
+    print(f"Filtrage artistes (min {min_images} images):")
+    print(f"  Artistes: {len(structure['artists'])} -> {len(artists_to_keep)}")
+    print(f"  Images retirées: {total_removed}")
+
+    return {
+        'styles': list(filtered_style_to_images.keys()),
+        'artists': sorted(artists_to_keep),
+        'style_to_images': filtered_style_to_images,
+        'artist_to_images': {k: v for k, v in filtered_artist_to_images.items() if v},
+        'style_to_artists': filtered_style_to_artists,
+        'total_images': sum(len(imgs) for imgs in filtered_style_to_images.values()),
+    }
+
+
 def build_label_mappings(structure: dict) -> tuple[dict, dict, dict, dict]:
     """
     Build label-to-index and index-to-label mappings.
