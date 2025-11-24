@@ -63,7 +63,7 @@ DEFAULT_CONFIG = {
 
     # Loss
     "style_weight": 1.0,
-    "artist_weight": 0.3,      # Réduit (artiste est très difficile)
+    "artist_weight": 0.1,      # Réduit (artiste est très difficile)
     "use_focal_loss": True,
     "focal_gamma": 2.0,
     "label_smoothing": 0.1,    # NOUVEAU: évite l'overconfidence
