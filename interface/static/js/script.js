@@ -18,6 +18,7 @@ const options = document.getElementById('options');
 const analyzeBtn = document.getElementById('analyzeBtn');
 const loading = document.getElementById('loading');
 const resultsSection = document.getElementById('resultsSection');
+const resultImg = document.getElementById('resultImg');
 const stylePredictions = document.getElementById('stylePredictions');
 const artistPredictions = document.getElementById('artistPredictions');
 const descriptionCard = document.getElementById('descriptionCard');
@@ -184,6 +185,17 @@ function displayResults(data) {
         return;
     }
 
+    // Afficher l'image analysée
+    resultImg.src = previewImg.src;
+
+    // Afficher la description si disponible (AVANT les prédictions)
+    if (data.description) {
+        descriptionText.textContent = data.description;
+        descriptionCard.style.display = 'block';
+    } else {
+        descriptionCard.style.display = 'none';
+    }
+
     // Afficher les prédictions de style
     if (data.style_predictions) {
         stylePredictions.innerHTML = '';
@@ -200,14 +212,6 @@ function displayResults(data) {
             const item = createPredictionItem(pred.label, pred.confidence);
             artistPredictions.appendChild(item);
         });
-    }
-
-    // Afficher la description si disponible
-    if (data.description) {
-        descriptionText.textContent = data.description;
-        descriptionCard.style.display = 'block';
-    } else {
-        descriptionCard.style.display = 'none';
     }
 
     // Afficher la section résultats

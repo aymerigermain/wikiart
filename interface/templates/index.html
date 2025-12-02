@@ -61,6 +61,26 @@
 
             <!-- Results Section -->
             <section class="results-section" id="resultsSection" style="display: none;">
+                <!-- Analyzed Image -->
+                <div class="result-image-card">
+                    <h2 class="result-title">
+                        <span class="icon">🖼️</span>
+                        Œuvre analysée
+                    </h2>
+                    <div class="result-image-preview">
+                        <img id="resultImg" src="" alt="Œuvre analysée">
+                    </div>
+                </div>
+
+                <!-- Description -->
+                <div class="description-card" id="descriptionCard" style="display: none;">
+                    <h2 class="result-title">
+                        <span class="icon">📝</span>
+                        Description de l'œuvre
+                    </h2>
+                    <p class="description-text" id="descriptionText"></p>
+                </div>
+
                 <div class="results-grid">
                     <!-- Style Predictions -->
                     <div class="result-card">
@@ -79,15 +99,6 @@
                         </h2>
                         <div class="predictions" id="artistPredictions"></div>
                     </div>
-                </div>
-
-                <!-- Description -->
-                <div class="description-card" id="descriptionCard" style="display: none;">
-                    <h2 class="result-title">
-                        <span class="icon">📝</span>
-                        Description de l'œuvre
-                    </h2>
-                    <p class="description-text" id="descriptionText"></p>
                 </div>
 
                 <!-- Retry Button -->
