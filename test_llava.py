@@ -7,7 +7,7 @@ Script simple pour tester LLaVA sur quelques images.
 from pathlib import Path
 from PIL import Image
 import torch
-from transformers import LlavaNextProcessor, LlavaNextForConditionalGeneration
+from transformers import LlavaNextProcessor, LlavaNextForConditionalGeneration, BitsAndBytesConfig
 
 def generate_description(image_path: str, processor, model, device: str = "cuda"):
     """
@@ -63,11 +63,18 @@ def main():
 
     print(f"\nChargement du modèle: {model_id}")
     print("(Cela peut prendre quelques minutes au premier lancement)")
+    print("Utilisation de la quantization 4-bit pour économiser la mémoire GPU...")
+
+    # Configuration pour quantization 4-bit
+    quantization_config = BitsAndBytesConfig(
+        load_in_4bit=True,
+        bnb_4bit_compute_dtype=torch.float16
+    )
 
     processor = LlavaNextProcessor.from_pretrained(model_id)
     model = LlavaNextForConditionalGeneration.from_pretrained(
         model_id,
-        torch_dtype=torch.float16 if device == "cuda" else torch.float32,
+        quantization_config=quantization_config,
         device_map="auto",
     )
 

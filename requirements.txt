@@ -9,3 +9,4 @@ open-clip-torch
 transformers>=4.37.0
 accelerate
 pillow
+bitsandbytes  # Pour quantization 4-bit
