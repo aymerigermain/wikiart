@@ -4,3 +4,8 @@ kagglehub==0.3.13
 
 # CLIP backbone (optionnel, pour --backbone-type clip)
 open-clip-torch
+
+# LLaVA pour génération de descriptions (optionnel, pour test_llava.py)
+transformers>=4.37.0
+accelerate
+pillow
