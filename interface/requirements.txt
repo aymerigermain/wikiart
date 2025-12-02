@@ -1,0 +1,22 @@
+# Requirements pour l'interface web WikiArt
+
+# Serveur web
+Flask>=3.0.0
+Werkzeug>=3.0.0
+
+# Dépendances du projet principal
+torch>=2.0.0
+torchvision>=0.15.0
+timm>=0.9.0
+Pillow>=10.0.0
+
+# Pour le téléchargement du dataset
+kagglehub==0.3.13
+
+# LLaVA pour les descriptions (optionnel)
+transformers>=4.37.0
+accelerate
+bitsandbytes
+
+# CLIP (optionnel, si utilisé)
+open-clip-torch

@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WikiArt Classifier - Interface de Test</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-content">
+                <h1 class="title">
+                    <span class="icon">🎨</span>
+                    WikiArt Classifier
+                </h1>
+                <p class="subtitle">Classification d'œuvres d'art par style et artiste</p>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Upload Section -->
+            <section class="upload-section">
+                <div class="upload-card">
+                    <div class="upload-area" id="uploadArea">
+                        <div class="upload-icon">📷</div>
+                        <h3 class="upload-title">Importer une image</h3>
+                        <p class="upload-subtitle">Glissez-déposez ou cliquez pour sélectionner</p>
+                        <input type="file" id="imageInput" accept="image/*" hidden>
+                        <button class="btn-primary" id="uploadBtn">Choisir une image</button>
+                    </div>
+
+                    <!-- Image Preview -->
+                    <div class="image-preview" id="imagePreview" style="display: none;">
+                        <img id="previewImg" src="" alt="Aperçu">
+                        <button class="btn-secondary btn-small" id="changeImageBtn">Changer d'image</button>
+                    </div>
+
+                    <!-- Options -->
+                    <div class="options" id="options" style="display: none;">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="includeDescription" checked>
+                            <span>Inclure la description (LLaVA)</span>
+                        </label>
+                    </div>
+
+                    <!-- Analyze Button -->
+                    <button class="btn-primary btn-large" id="analyzeBtn" style="display: none;">
+                        Analyser l'œuvre
+                    </button>
+                </div>
+            </section>
+
+            <!-- Loading -->
+            <div class="loading" id="loading" style="display: none;">
+                <div class="spinner"></div>
+                <p>Analyse en cours...</p>
+            </div>
+
+            <!-- Results Section -->
+            <section class="results-section" id="resultsSection" style="display: none;">
+                <div class="results-grid">
+                    <!-- Style Predictions -->
+                    <div class="result-card">
+                        <h2 class="result-title">
+                            <span class="icon">🎨</span>
+                            Style Artistique
+                        </h2>
+                        <div class="predictions" id="stylePredictions"></div>
+                    </div>
+
+                    <!-- Artist Predictions -->
+                    <div class="result-card">
+                        <h2 class="result-title">
+                            <span class="icon">👤</span>
+                            Artiste
+                        </h2>
+                        <div class="predictions" id="artistPredictions"></div>
+                    </div>
+                </div>
+
+                <!-- Description -->
+                <div class="description-card" id="descriptionCard" style="display: none;">
+                    <h2 class="result-title">
+                        <span class="icon">📝</span>
+                        Description de l'œuvre
+                    </h2>
+                    <p class="description-text" id="descriptionText"></p>
+                </div>
+
+                <!-- Retry Button -->
+                <div class="retry-section">
+                    <button class="btn-secondary" id="retryBtn">Analyser une autre image</button>
+                </div>
+            </section>
+
+            <!-- Error Message -->
+            <div class="error-message" id="errorMessage" style="display: none;">
+                <span class="error-icon">⚠️</span>
+                <p id="errorText"></p>
+            </div>
+        </main>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <p>Propulsé par ViT, LLaVA et Flask | Projet Deep Learning</p>
+        </footer>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+</body>
+</html>
