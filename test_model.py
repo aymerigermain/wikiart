@@ -92,12 +92,14 @@ def load_model(
     config = checkpoint.get("config", {})
     backbone = config.get("backbone", "vit_base_patch16_224")
     dropout = config.get("dropout", 0.1)
+    backbone_type = config.get("backbone_type", "timm")
 
     # Créer le modèle
     model = WikiArtClassifier(
         num_styles=num_styles,
         num_artists=num_artists,
         backbone_name=backbone,
+        backbone_type=backbone_type,
         pretrained=False,  # On charge les poids du checkpoint
         freeze_backbone=False,
         dropout=dropout,
@@ -113,6 +115,7 @@ def load_model(
         "epoch": checkpoint.get("epoch", "?"),
         "phase": checkpoint.get("phase", "?"),
         "backbone": backbone,
+        "backbone_type": backbone_type,
         "val_metrics": checkpoint.get("val_metrics", {}),
     }
 
