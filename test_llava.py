@@ -28,8 +28,8 @@ def generate_description(image_path: str, processor, model, device: str = "cuda"
     # Prompt pour l'art
     prompt = "[INST] <image>\nDescribe this artwork in detail. Include information about the style, colors, composition, and mood. [/INST]"
 
-    # Préparation des inputs
-    inputs = processor(prompt, image, return_tensors="pt").to(device)
+    # Préparation des inputs (text first, then images)
+    inputs = processor(text=prompt, images=image, return_tensors="pt").to(device)
 
     # Génération
     with torch.no_grad():
