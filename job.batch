@@ -8,4 +8,4 @@
 #SBATCH --error=logslurms/slurm-%j.err
 
 source setup.sh
-python3 train.py
+python3 train_style.py
