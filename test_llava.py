@@ -26,7 +26,36 @@ def generate_description(image_path: str, processor, model, device: str = "cuda"
     image = Image.open(image_path).convert("RGB")
 
     # Prompt pour l'art
-    prompt = "[INST] <image>\nDescribe this artwork in detail. Include information about the style, colors, composition, and mood. [/INST]"
+    prompt = """ [INST] <image>
+
+Return ONLY valid JSON. No explanations, no markdown, no comments.
+
+The JSON MUST follow exactly this structure:
+{
+  "title": "",
+  "content": "",
+  "form": "",
+  "context": ""
+}
+
+Rules:
+- Max total length = 80 words across all fields combined.
+- The JSON must be complete and syntactically valid.
+- "title": identify likely style + historical period.
+- "content": describe only what is visually present (colors, composition, mood).
+- "form": explain techniques, brushwork, composition style.
+- "context": give a short historical or artistic background.
+- Do not repeat the instructions.
+
+Example of the expected format:
+{
+  “title”: “Late 19th-century French Impressionist painting”,
+  “content”: “The scene shows a tree-lined river with blurred human silhouettes.”,
+  “form”: “The quick brushstrokes, diffuse light, and pastel colors typical of Impressionism are visible.”,
+  “context”: “This work reflects French painters' interest in light and outdoor painting.”
+}
+[/INST]
+ """
 
     # Préparation des inputs (text first, then images)
     inputs = processor(text=prompt, images=image, return_tensors="pt").to(device)
@@ -35,7 +64,7 @@ def generate_description(image_path: str, processor, model, device: str = "cuda"
     with torch.no_grad():
         output = model.generate(
             **inputs,
-            max_new_tokens=200,
+            max_new_tokens=800,
             do_sample=False,  # Greedy decoding pour stabilité
         )
 
