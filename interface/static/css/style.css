@@ -407,14 +407,56 @@ body {
     margin-bottom: 2rem;
 }
 
-.description-text {
-    font-size: 1.1rem;
-    line-height: 1.8;
-    color: var(--text-primary);
-    background: var(--surface-light);
+.description-section {
+    margin-top: 1.5rem;
     padding: 1.5rem;
-    border-radius: 0.5rem;
+    background: var(--surface-light);
+    border-radius: 0.75rem;
     border-left: 4px solid var(--primary-color);
+    transition: all 0.3s ease;
+}
+
+.description-section:hover {
+    background: rgba(99, 102, 241, 0.05);
+    transform: translateX(4px);
+}
+
+.description-section-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin-bottom: 0.75rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: var(--primary-color);
+}
+
+.section-icon {
+    font-size: 1.2rem;
+}
+
+.description-section-text {
+    font-size: 1rem;
+    line-height: 1.7;
+    color: var(--text-primary);
+    margin: 0;
+}
+
+/* Different border colors for each section */
+.description-section:nth-child(2) {
+    border-left-color: #8b5cf6; /* Purple */
+}
+
+.description-section:nth-child(3) {
+    border-left-color: #ec4899; /* Pink */
+}
+
+.description-section:nth-child(4) {
+    border-left-color: #f59e0b; /* Orange */
+}
+
+.description-section:nth-child(5) {
+    border-left-color: #10b981; /* Green */
 }
 
 /* ============================================================================

@@ -22,7 +22,14 @@ const resultImg = document.getElementById('resultImg');
 const stylePredictions = document.getElementById('stylePredictions');
 const artistPredictions = document.getElementById('artistPredictions');
 const descriptionCard = document.getElementById('descriptionCard');
-const descriptionText = document.getElementById('descriptionText');
+const titleSection = document.getElementById('titleSection');
+const titleText = document.getElementById('titleText');
+const contentSection = document.getElementById('contentSection');
+const contentText = document.getElementById('contentText');
+const formSection = document.getElementById('formSection');
+const formText = document.getElementById('formText');
+const contextSection = document.getElementById('contextSection');
+const contextText = document.getElementById('contextText');
 const retryBtn = document.getElementById('retryBtn');
 const errorMessage = document.getElementById('errorMessage');
 const errorText = document.getElementById('errorText');
@@ -188,9 +195,47 @@ function displayResults(data) {
     // Afficher l'image analysée
     resultImg.src = previewImg.src;
 
-    // Afficher la description si disponible (AVANT les prédictions)
-    if (data.description) {
-        descriptionText.textContent = data.description;
+    // Afficher la description structurée si disponible (AVANT les prédictions)
+    let hasDescription = false;
+
+    // Title
+    if (data.title && data.title.trim()) {
+        titleText.textContent = data.title;
+        titleSection.style.display = 'block';
+        hasDescription = true;
+    } else {
+        titleSection.style.display = 'none';
+    }
+
+    // Content
+    if (data.content && data.content.trim()) {
+        contentText.textContent = data.content;
+        contentSection.style.display = 'block';
+        hasDescription = true;
+    } else {
+        contentSection.style.display = 'none';
+    }
+
+    // Form
+    if (data.form && data.form.trim()) {
+        formText.textContent = data.form;
+        formSection.style.display = 'block';
+        hasDescription = true;
+    } else {
+        formSection.style.display = 'none';
+    }
+
+    // Context
+    if (data.context && data.context.trim()) {
+        contextText.textContent = data.context;
+        contextSection.style.display = 'block';
+        hasDescription = true;
+    } else {
+        contextSection.style.display = 'none';
+    }
+
+    // Afficher la carte de description si au moins un champ existe
+    if (hasDescription) {
         descriptionCard.style.display = 'block';
     } else {
         descriptionCard.style.display = 'none';

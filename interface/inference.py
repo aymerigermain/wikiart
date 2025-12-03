@@ -212,13 +212,13 @@ class WikiArtInference:
 
     def generate_description(self, image_path: str) -> dict:
         """
-        Génère une description de l'œuvre d'art.
+        Génère une description de l'œuvre d'art au format JSON structuré.
 
         Args:
             image_path: Chemin vers l'image
 
         Returns:
-            Dict avec la description
+            Dict avec les champs: title, content, form, context
         """
         if self.llava_model is None or self.llava_processor is None:
             return {"error": "LLaVA n'est pas disponible"}
@@ -227,8 +227,37 @@ class WikiArtInference:
             # Charger l'image
             image = Image.open(image_path).convert("RGB")
 
-            # Prompt pour l'art
-            prompt = "[INST] <image>\nDescribe this artwork in detail. Include information about the style, colors, composition, and mood. [/INST]"
+            # Prompt pour l'art (format JSON)
+            prompt = """ [INST] <image>
+
+Return ONLY valid JSON. No explanations, no markdown, no comments.
+
+The JSON MUST follow exactly this structure:
+{
+  "title": "",
+  "content": "",
+  "form": "",
+  "context": ""
+}
+
+Rules:
+- Max total length = 80 words across all fields combined.
+- The JSON must be complete and syntactically valid.
+- "title": identify likely style + historical period.
+- "content": describe only what is visually present (colors, composition, mood).
+- "form": explain techniques, brushwork, composition style.
+- "context": give a short historical or artistic background.
+- Do not repeat the instructions.
+
+Example of the expected format:
+{
+  "title": "Late 19th-century French Impressionist painting",
+  "content": "The scene shows a tree-lined river with blurred human silhouettes.",
+  "form": "The quick brushstrokes, diffuse light, and pastel colors typical of Impressionism are visible.",
+  "context": "This work reflects French painters' interest in light and outdoor painting."
+}
+[/INST]
+ """
 
             # Préparation des inputs
             inputs = self.llava_processor(text=prompt, images=image, return_tensors="pt").to(self.device)
@@ -237,7 +266,7 @@ class WikiArtInference:
             with torch.no_grad():
                 output = self.llava_model.generate(
                     **inputs,
-                    max_new_tokens=200,
+                    max_new_tokens=800,
                     do_sample=False,
                 )
 
@@ -245,7 +274,29 @@ class WikiArtInference:
             description = self.llava_processor.decode(output[0], skip_special_tokens=True)
             description = description.split("[/INST]")[-1].strip()
 
-            return {"description": description}
+            # Parser le JSON
+            import json
+            import re
+
+            # Chercher le JSON dans la réponse
+            json_match = re.search(r'\{[^{}]*"title"[^{}]*\}', description, re.DOTALL)
+            if json_match:
+                json_str = json_match.group(0)
+                parsed = json.loads(json_str)
+                return {
+                    "title": parsed.get("title", ""),
+                    "content": parsed.get("content", ""),
+                    "form": parsed.get("form", ""),
+                    "context": parsed.get("context", "")
+                }
+            else:
+                # Fallback si le JSON n'est pas trouvé
+                return {
+                    "title": "Description",
+                    "content": description,
+                    "form": "",
+                    "context": ""
+                }
 
         except Exception as e:
             return {"error": str(e)}
